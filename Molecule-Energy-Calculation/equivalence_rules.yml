@@ -1,0 +1,59 @@
+rules:
+    # CC bond opening/closing
+    '[C+0:1]=[C+0:2]>>[C+1:1]-[C-1:2]': 'bond opening'
+    '[C+1:1]-[C-1:2]>>[C+0:1]=[C+0:2]': 'bond closing'
+    '[C+0:1]#[C+0:2]>>[C+1:1]=[C-1:2]': 'bond opening'
+    '[C+1:1]=[C-1:2]>>[C+0:1]#[C+0:2]': 'bond closing'
+    
+    # CC dissociation/association
+    '[C+0:1]-[C+0:2]>>[C+1:1].[C-1:2]': 'dissociation'
+    '[C+1:1].[C-1:2]>>[C+0:1]-[C+0:2]': 'association'
+    
+    # HC dissociation/association
+    '[H+0:1]-[C+0:2]>>[H+1:1].[C-1:2]': 'dissociation'
+    '[H+1:1].[C-1:2]>>[H+0:1]-[C+0:2]': 'association'
+    
+    # CO bond opening/closing
+    '[C+0:1]=[O+0:2]>>[C+1:1]-[O-1:2]': 'bond opening'
+    '[C+1:1]-[O-1:2]>>[C+0:1]=[O+0:2]': 'bond closing'
+    '[C+0:1]=[O+1:2]>>[C+1:1]-[O+0:2]': 'bond opening'
+    '[C+1:1]-[O+0:2]>>[C+0:1]=[O+1:2]': 'bond closing'
+    '[C+0:1]#[O+0:2]>>[C+1:1]=[O-1:2]': 'bond opening'
+    '[C+1:1]=[O-1:2]>>[C+0:1]#[O+0:2]': 'bond closing'
+    '[C+0:1]#[O+1:2]>>[C+1:1]=[O+0:2]': 'bond opening'
+    '[C+1:1]=[O+0:2]>>[C+0:1]#[O+1:2]': 'bond closing'
+    
+    # CO dissociation/association
+    '[C+0:1]-[O+0:2]>>[C+1:1].[O-1:2]': 'dissociation'
+    '[C+1:1].[O-1:2]>>[C+0:1]-[O+0:2]': 'association'
+    '[C+0:1]-[O+1:2]>>[C+1:1].[O+0:2]': 'dissociation'
+    '[C+1:1].[O+0:2]>>[C+0:1]-[O+1:2]': 'association'
+    
+    # OH dissociation/association
+    '[O+0:1]-[H+0:2]>>[O-1:1].[H+1:2]': 'dissociation'
+    '[O-1:1].[H+1:2]>>[O+0:1]-[H+0:2]': 'association'
+    '[O+1:1]-[H+0:2]>>[O+0:1].[H+1:2]': 'dissociation'
+    '[O+0:1].[H+1:2]>>[O+1:1]-[H+0:2]': 'association'
+    
+    # CN bond opening/closing
+    '[C+0:1]=[N+0:2]>>[C+1:1]-[N-1:2]': 'bond opening'
+    '[C+1:1]-[N-1:2]>>[C+0:1]=[N+0:2]': 'bond closing'
+    '[C+0:1]=[N+1:2]>>[C+1:1]-[N+0:2]': 'bond opening'
+    '[C+1:1]-[N+0:2]>>[C+0:1]=[N+1:2]': 'bond closing'
+    '[C+0:1]#[N+0:2]>>[C+1:1]=[N-1:2]': 'bond opening'
+    '[C+1:1]=[N-1:2]>>[C+0:1]#[N+0:2]': 'bond closing'
+    '[C+0:1]#[N+1:2]>>[C+1:1]=[N+0:2]': 'bond opening'
+    '[C+1:1]=[N+0:2]>>[C+0:1]#[N+1:2]': 'bond closing'
+    
+    # CN dissociation/association
+    '[C+0:1]-[N+0:2]>>[C+1:1].[N-1:2]': 'dissociation'
+    '[C+1:1].[N-1:2]>>[C+0:1]-[N+0:2]': 'association'
+    '[C+0:1]-[N+1:2]>>[C+1:1].[N+0:2]': 'dissociation'
+    '[C+1:1].[N+0:2]>>[C+0:1]-[N+1:2]': 'association'
+    
+    # HN dissociation/association
+    '[H+0:1]-[N+0:2]>>[H+1:1].[N-1:2]': 'dissociation'
+    '[H+1:1].[N-1:2]>>[H+0:1]-[N+0:2]': 'association'
+    '[H+0:1]-[N+1:2]>>[H+1:1].[N+0:2]': 'dissociation'
+    '[H+1:1].[N+0:2]>>[H+0:1]-[N+1:2]': 'association'
+

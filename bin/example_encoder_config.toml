@@ -1,0 +1,37 @@
+  [input]
+  input_file = "Networks/RN.graphml.bz2"
+  weight_attr = "weight"
+  cores = 1
+  max_memory_gb = 64
+  node_features_file = ""
+  initialization_method = "landmark_mds"
+  landmark_ratio = 0.3
+  landmark_selection = "random"
+
+  [model]
+  embedding_dim = 10
+  hidden_dims = [512, 256, 128]
+  dropout = 0.1
+  num_features = 30
+  batch_size = 1000
+
+  [training]
+  epochs = 100000
+  learning_rate = 0.1
+  sample_ratio = 0.3
+  val_ratio = 0.15
+  test_ratio = 0.15
+  patience = 1000
+  weight_decay = 1e-5
+  pair_batch_size = 1000000
+  eps = 1e-8
+  max_norm = 1.0
+  eta_min = 0.001
+
+  [system]
+  device = "auto"
+  seed = ""
+  save = true
+  output_name = ""
+  save_node_features = true
+  save_npz = true

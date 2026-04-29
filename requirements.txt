@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+scikit-learn
+networkx
+networkit
+torch
+rdkit
+openbabel
+PyYAML
+umap-learn
+colibri2
