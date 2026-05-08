@@ -20,7 +20,7 @@ The repository includes:
 - `bin/subsample_cmds_embedding.py` - subsampling/transform utility for cMDS embeddings
 - `Molecule-Energy-Calculation/` - scripts to extract molecules, detect equivalents, merge energies, and add edge weights
 - `Networks/` - reaction networks (RNs) from the paper, as `*.graphml.bz2`.
-    - **Unweighted** variants have no Karic edge weights
+    - **Unweighted** variants have no karc edge weights
     - **weighted** variants have karc edge weights
 
 ## Requirements
