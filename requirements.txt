@@ -9,4 +9,6 @@ rdkit
 openbabel
 PyYAML
 umap-learn
+statsmodels
+tqdm
 colibri2

@@ -18,6 +18,7 @@ The repository includes:
 - `bin/embedded_space_reaction_path_finder.py` - path finding in embedding space
 - `bin/nonlinear_de_finder.py` - parameter fitting helper
 - `bin/subsample_cmds_embedding.py` - subsampling/transform utility for cMDS embeddings
+- `bin/get_stats.py` - reaction-network graph statistics (fractal dimension via Compact Box Burning; mean and std of edge weights on weighted graphs)
 - `Molecule-Energy-Calculation/` - scripts to extract molecules, detect equivalents, merge energies, and add edge weights
 - `Networks/` - reaction networks (RNs) from the paper, as `*.graphml.bz2`.
     - **Unweighted** variants have no karc edge weights
@@ -39,6 +40,8 @@ Core dependencies include:
 - `openbabel`
 - `PyYAML`
 - `umap-learn` (optional for UMAP mode)
+- `statsmodels` (for `bin/get_stats.py`)
+- `tqdm` (for `bin/get_stats.py`)
 - `colibri2`
 
 ## Full Workflow (Colibri2 -> Weighted Graph -> Embeddings -> Metrics)
