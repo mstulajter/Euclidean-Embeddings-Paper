@@ -315,7 +315,7 @@ def analyze_paths(
     return results
 
 
-def format_duplicity(path_costs: list[float]) -> str:
+def format_multiplicity(path_costs: list[float]) -> str:
     if not path_costs:
         return "None"
     cost_counts = defaultdict(int)
@@ -325,7 +325,7 @@ def format_duplicity(path_costs: list[float]) -> str:
     return ', '.join(parts)
 
 
-def format_length_duplicity(path_lengths: list[int]) -> str:
+def format_length_multiplicity(path_lengths: list[int]) -> str:
     if not path_lengths:
         return "None"
     length_counts = defaultdict(int)
@@ -360,8 +360,8 @@ def print_results(analysis_results: list[dict] | None, hide_paths: bool = False)
         for rule in order_list[:-1]:
             print(f'    {rule} --> ')
         print(f'    {order_list[-1]}')
-        print(f'  Duplicity:\n    {format_duplicity(path_costs)}')
-        print(f'  Path Length Duplicity:\n    {format_length_duplicity(path_lengths)}\n')
+        print(f'  Multiplicity:\n    {format_multiplicity(path_costs)}')
+        print(f'  Path Length Multiplicity:\n    {format_length_multiplicity(path_lengths)}\n')
 
 
 def main() -> None:
