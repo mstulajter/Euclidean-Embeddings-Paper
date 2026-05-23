@@ -9,7 +9,11 @@ Authors:
 
 Version 2.0.0
 
-Usage: reaction_path_finder.py [-h] -gfile GRAPHML_FILE -r REACTANTS -p PRODUCTS [--delta DELTA]
+Usage: graphml_reaction_path_finder.py -gfile GRAPHML -r REACTANTS -p PRODUCTS [--delta N]
+       [--rules equivalence_rules.yml] [--hide-paths] [--verbose]
+
+Edge-step reporting uses equivalence_rules.yml when available (filters bond
+opening/closing). Without YAML, all graph edge rules are reported.
 """
 
 import argparse
@@ -21,6 +25,7 @@ import re
 import sys
 from collections import defaultdict, deque
 import networkx as nx
+import yaml
 try:
     from rdkit import Chem
     from rdkit import RDLogger
@@ -104,6 +109,17 @@ def parse_arguments() -> argparse.Namespace:
         help="Print verbose output",
         action="store_true",
         default=False,
+    )
+    parser.add_argument(
+        "--rules",
+        metavar="YAML",
+        type=str,
+        default=None,
+        help=(
+            "equivalence_rules.yml for bond-open/close filtering. "
+            "Default: bin/equivalence_rules.yml or "
+            "../Molecule-Energy-Calculation/equivalence_rules.yml"
+        ),
     )
     return parser.parse_args()
 
@@ -284,6 +300,128 @@ def extract_edge_info(
     return edges
 
 
+_REPORTABLE_RULE_TYPES = frozenset({"dissociation", "association"})
+_RULE_TYPE_BY_SMARTS: dict[str, str] | None = None
+_RULES_YAML_OVERRIDE: str | None = None
+
+
+def configure_rules_yaml(path: str | None) -> None:
+    global _RULES_YAML_OVERRIDE, _RULE_TYPE_BY_SMARTS
+    _RULES_YAML_OVERRIDE = os.path.abspath(path) if path else None
+    _RULE_TYPE_BY_SMARTS = None
+
+
+def _resolve_rules_yaml_path() -> str | None:
+    if _RULES_YAML_OVERRIDE:
+        return _RULES_YAML_OVERRIDE if os.path.isfile(_RULES_YAML_OVERRIDE) else None
+    here = os.path.dirname(os.path.abspath(__file__))
+    for cand in (
+        os.path.join(here, "equivalence_rules.yml"),
+        os.path.join(here, "..", "Molecule-Energy-Calculation", "equivalence_rules.yml"),
+    ):
+        if os.path.isfile(cand):
+            return os.path.abspath(cand)
+    return None
+
+
+def note_rules_yaml_status() -> None:
+    path = _resolve_rules_yaml_path()
+    if path:
+        print(f"# Rule types: {path}\n")
+    else:
+        print(
+            "NOTE: no equivalence_rules.yml provided; bond opening/closing are not "
+            "filtered from edge steps (all graph rules are reported).\n"
+        )
+
+
+def _load_rule_type_by_smarts() -> dict[str, str]:
+    global _RULE_TYPE_BY_SMARTS
+    if _RULE_TYPE_BY_SMARTS is not None:
+        return _RULE_TYPE_BY_SMARTS
+    path = _resolve_rules_yaml_path()
+    if path is None:
+        _RULE_TYPE_BY_SMARTS = {}
+        return _RULE_TYPE_BY_SMARTS
+    with open(path, encoding="utf-8") as fd:
+        data = yaml.safe_load(fd)
+    rules = data.get("rules", {})
+    _RULE_TYPE_BY_SMARTS = {smarts.strip(): rule_type for smarts, rule_type in rules.items()}
+    return _RULE_TYPE_BY_SMARTS
+
+
+def _strip_outer_parens_for_lookup(rule: str) -> str:
+    s = (rule or "").strip()
+    if len(s) >= 2 and s[0] == "(" and s[-1] == ")":
+        return s[1:-1].strip()
+    return s
+
+
+def _rule_type(rule: str) -> str | None:
+    s = (rule or "").strip()
+    types = _load_rule_type_by_smarts()
+    return types.get(s) or types.get(_strip_outer_parens_for_lookup(s))
+
+
+def _is_reportable_transformation(rule: str) -> bool:
+    s = (rule or "").strip()
+    if not s:
+        return False
+    rule_type = _rule_type(s)
+    if rule_type is None:
+        return True
+    return rule_type in _REPORTABLE_RULE_TYPES
+
+
+_ZERO_ENERGY_WEIGHT_TOL = 1e-12
+
+
+def _edge_weight_for_bookkeeping(edge_data: dict, weight_key: str | None) -> float:
+    if "energy_weight" in edge_data:
+        try:
+            v = float(edge_data["energy_weight"])
+            if v == v and v not in (float("inf"), float("-inf")):
+                return v
+        except (TypeError, ValueError):
+            pass
+    return get_edge_weight(edge_data, weight_key)
+
+
+def _is_zero_energy_edge(edge_data: dict, weight_key: str | None) -> bool:
+    if not weight_key:
+        return False
+    return abs(_edge_weight_for_bookkeeping(edge_data, weight_key)) < _ZERO_ENERGY_WEIGHT_TOL
+
+
+def _reportable_steps(
+    path_nodes: list,
+    G: nx.Graph,
+    rule_key: str | None,
+    weight_key: str | None,
+) -> list[str]:
+    if not rule_key:
+        return []
+    steps = []
+    for i in range(len(path_nodes) - 1):
+        u, v = path_nodes[i], path_nodes[i + 1]
+        edge_data = G.edges[u, v]
+        if _is_zero_energy_edge(edge_data, weight_key):
+            continue
+        rule = (edge_data.get(rule_key, "") or "").strip()
+        if rule and _is_reportable_transformation(rule):
+            steps.append(rule)
+    return steps
+
+
+def _path_transformation_signature(
+    path_nodes: list,
+    G: nx.Graph,
+    rule_key: str | None,
+    weight_key: str | None,
+) -> tuple:
+    return tuple(sorted(_reportable_steps(path_nodes, G, rule_key, weight_key)))
+
+
 def analyze_paths(
     G: nx.Graph,
     path_costs: list[tuple[float, str, list]],
@@ -292,25 +430,42 @@ def analyze_paths(
 ) -> list[dict] | None:
     if not path_costs:
         return None
-    cost_groups = defaultdict(list)
+
+    cost_groups: dict[float, dict[tuple, list]] = defaultdict(lambda: defaultdict(list))
     for cost, path_str, path_nodes in path_costs:
-        cost_groups[cost].append((path_str, path_nodes))
+        transforms = _path_transformation_signature(path_nodes, G, rule_key, weight_key)
+        cost_groups[cost][transforms].append((path_str, path_nodes))
+
     results = []
     for cost in sorted(cost_groups.keys()):
-        paths_in_group = cost_groups[cost]
-        all_edges = []
-        path_costs_list = []
-        path_lengths_list = []
-        for path_str, path_nodes in paths_in_group:
-            edges = extract_edge_info(G, path_nodes, rule_key, weight_key)
-            all_edges.append((path_str, edges))
-            path_costs_list.append(cost)
-            path_lengths_list.append(len(edges))
+        transformation_groups = []
+        groups_by_transforms = cost_groups[cost]
+        for transforms in sorted(
+            groups_by_transforms.keys(),
+            key=lambda t: (-len(groups_by_transforms[t]), t),
+        ):
+            paths_in_group = groups_by_transforms[transforms]
+            all_edges = []
+            path_costs_list = []
+            path_lengths_list = []
+            for path_str, path_nodes in paths_in_group:
+                edges = extract_edge_info(G, path_nodes, rule_key, weight_key)
+                all_edges.append((path_str, edges))
+                path_costs_list.append(compute_path_cost(path_nodes, G, weight_key))
+                path_lengths_list.append(len(edges))
+            representative_nodes = paths_in_group[0][1]
+            transformation_groups.append({
+                "transformations": transforms,
+                "transformations_display": tuple(
+                    _reportable_steps(representative_nodes, G, rule_key, weight_key)
+                ),
+                "paths": all_edges,
+                "path_costs": path_costs_list,
+                "path_lengths": path_lengths_list,
+            })
         results.append({
-            'cost': cost,
-            'paths': all_edges,
-            'path_costs': path_costs_list,
-            'path_lengths': path_lengths_list,
+            "cost": cost,
+            "transformation_groups": transformation_groups,
         })
     return results
 
@@ -335,37 +490,53 @@ def format_length_multiplicity(path_lengths: list[int]) -> str:
     return ', '.join(parts)
 
 
+def _print_transformation_steps(transformations: tuple) -> None:
+    rules = list(transformations)
+    if not rules:
+        print("    (none)")
+        return
+    for i, rule in enumerate(rules):
+        if i < len(rules) - 1:
+            print(f"    {rule} --> ")
+        else:
+            print(f"    {rule}")
+
+
 def print_results(analysis_results: list[dict] | None, hide_paths: bool = False) -> None:
     if not analysis_results:
-        print('No paths found.')
+        print("No paths found.")
         return
     for rank, result in enumerate(analysis_results, 1):
-        cost = result['cost']
-        paths = result['paths']
-        path_costs = result['path_costs']
-        path_lengths = result['path_lengths']
-        print(f'{rank}: Cost: {cost:.9f}')
-        if not hide_paths:
-            for i, (path_str, _) in enumerate(paths, 1):
-                print(f'    Path{i}: {path_str}')
-        print('  Edge steps:')
-        
-        order_list = []
-        path_str, edges = paths[0]
-        for edge in edges:
-            rule = edge['rule']
-            weight = edge['weight']
-            if rule and weight != 0.0:
-                order_list.append(rule)
-        for rule in order_list[:-1]:
-            print(f'    {rule} --> ')
-        print(f'    {order_list[-1]}')
-        print(f'  Multiplicity:\n    {format_multiplicity(path_costs)}')
-        print(f'  Path Length Multiplicity:\n    {format_length_multiplicity(path_lengths)}\n')
+        cost = result["cost"]
+        groups = result["transformation_groups"]
+        print(f"{rank}: Cost: {cost:.9f}")
+
+        for group_idx, group in enumerate(groups, 1):
+            paths = group["paths"]
+            path_costs = group["path_costs"]
+            path_lengths = group["path_lengths"]
+            if len(groups) > 1:
+                print(f"  Group {group_idx}:")
+
+            if not hide_paths:
+                for i, (path_str, _) in enumerate(paths, 1):
+                    print(f"    Path{i}: {path_str}")
+
+            print("  Edge steps:")
+            display = group.get("transformations_display") or group.get("transformations")
+            if display:
+                _print_transformation_steps(display)
+
+            print(f"  Multiplicity:\n    {format_multiplicity(path_costs)}")
+            print(f"  Path Length Multiplicity:\n    {format_length_multiplicity(path_lengths)}")
+        print()
 
 
 def main() -> None:
     args = parse_arguments()
+    configure_rules_yaml(args.rules)
+    if args.rules and not os.path.isfile(os.path.abspath(args.rules)):
+        print(f"WARNING: --rules file not found: {args.rules}", file=sys.stderr)
 
     rn = molecular_formula_from_smiles(args.r)
     outpath = make_output_path(rn, args.delta)
@@ -381,6 +552,7 @@ def main() -> None:
 
 def _run(args: argparse.Namespace, outpath: str, rn: str) -> None:
     print(f"# Output file: {outpath}\n")
+    note_rules_yaml_status()
     # Load graph
     gpath = args.gfile
     if gpath.endswith('.bz2'):

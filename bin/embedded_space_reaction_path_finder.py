@@ -8,7 +8,8 @@ Authors:
 
 Version 2.0.0
 
-Usage: embedded_space_reaction_path_finder.py <npz> <graphml> -r <reactants> -p <products> [--delta DELTA] [--output OUTPUT]
+Usage: embedded_space_reaction_path_finder.py <npz> <graphml> -r REACTANTS -p PRODUCTS
+       [--delta N] [--rules equivalence_rules.yml] [--output PATH] [--hide-paths] [--verbose]
 """
 
 import argparse
@@ -86,6 +87,13 @@ def parse_arguments() -> argparse.Namespace:
             "If a directory is provided, it must already exist."
         ),
     )
+    parser.add_argument(
+        "--rules",
+        metavar="YAML",
+        type=str,
+        default=None,
+        help="equivalence_rules.yml for edge-step bookkeeping (bond open/close)",
+    )
     return parser.parse_args()
 
 
@@ -139,6 +147,18 @@ def load_graphml(graphml_path: str) -> nx.Graph:
     return G
 
 
+def preserve_energy_weights(G: nx.Graph) -> None:
+    """Keep GraphML energy weights on edges for bookkeeping (before embedding overwrite)."""
+    for u, v, data in G.edges(data=True):
+        w = data.get("weight")
+        if w is None:
+            continue
+        try:
+            data["energy_weight"] = float(w)
+        except (TypeError, ValueError):
+            pass
+
+
 def apply_embedding_weights_to_graph(G: nx.Graph, coords: np.ndarray, id_to_index: dict) -> None:
     """Set edge weight = Euclidean distance between endpoints in embedding."""
     missing = [node for node in G.nodes if node not in id_to_index]
@@ -157,6 +177,9 @@ def main() -> None:
     try:
         args = parse_arguments()
         rpf = _import_rpf()
+        rpf.configure_rules_yaml(args.rules)
+        if args.rules and not os.path.isfile(os.path.abspath(args.rules)):
+            print(f"WARNING: --rules file not found: {args.rules}", file=sys.stderr)
         npz_path = os.path.abspath(args.npz)
         graphml = os.path.abspath(args.graphml)
         if not os.path.isfile(npz_path):
@@ -167,6 +190,7 @@ def main() -> None:
 
         coords, id_to_index = load_coords_and_mapping(npz_path)
         G = load_graphml(graphml)
+        preserve_energy_weights(G)
         apply_embedding_weights_to_graph(G, coords, id_to_index)
 
         node_labels = {node: data.get("smiles", node) for node, data in G.nodes(data=True)}
@@ -216,6 +240,8 @@ def _run(
 ) -> None:
     print(f"# Output file: {outpath}\n")
     print("# Weights = embedding (npz) Euclidean distances\n")
+    rpf.note_rules_yaml_status()
+    print("# Edge-step bookkeeping: zero GraphML energy_weight omitted; YAML bond open/close omitted\n")
     print(f"Reactant: {args.r} (node: {reactant_node})")
     print(f"Product: {args.p} (node: {product_node})")
 
